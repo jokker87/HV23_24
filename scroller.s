@@ -15,6 +15,8 @@ QR_SCREEN_BPL = 1
 QR_SCREEN_BROW = QR_SCREEN_WIDTH/8
 QR_SCREEN_LINE = QR_SCREEN_BROW*QR_SCREEN_BPL
 
+logoScreenW = 320
+logoScreenBpl = logoScreenW/8
 logow =144
 logoh =151
 logobitplanes = 5
@@ -38,11 +40,14 @@ offset_fontkern = $a06
 SCREEN_LINE		= ScrBpl*fontbpls
 SCREEN_MEMSIZE		= SCREEN_LINE*h
 
+
+LogoScreen_Line     = logoScreenBpl*logobitplanes
+LogoScreen_MemSize  = LogoScreen_Line*logoh+1000
+
        incdir "include"
        include "hw.i"
        
        RSRESET
-screen:		rs.l	1
 oldStack:	rs.l	1
 oldView:	rs.l	1
 oldIntena:	rs.w	1
@@ -213,10 +218,16 @@ DoVariables:
 		bne.b	.clearBSS
 	ENDC
 
-       ;set chip pointers
-		move.l	a0,screen(a6)
-		add.l	#1,a0
-		;move.l	a0,copper(a6)
+       lea	LogoScreen,a0
+
+       IFND KICKSTART2
+	;clear BSS area 
+		move.l	a0,a1
+		move.l	#LogoScreen_MemSize/4,d1
+.clearBSS2	move.l	d0,(a1)+
+		subq.l	#1,d1
+		bne.b	.clearBSS2
+	ENDC
 
 	;store old stack pointer
 		lea	4(a7),a0
@@ -296,7 +307,6 @@ ok2:
        ;move.l #waitras1,a0
 
        bsr scrollit
-       ;bsr PlotChar
 
        move.w ScrollCtr,d0         ; plot new char every 32 pixels
        addq.w #4,d0                ; cause of blitter scrolling
@@ -381,7 +391,7 @@ init:
 
        dbf d1,.l2
 
-       lea logo,a0
+       lea LogoScreen,a0
        lea CopBplP,a1
        move #logobitplanes-1,d0
 .l3:
@@ -392,7 +402,7 @@ init:
        move d1,6(a1)
 
        addq #8,a1
-       lea logobpl(a0),a0
+       lea logoScreenBpl(a0),a0
        dbf d0,.l3
 
        lea CopBplP,a1
@@ -414,7 +424,28 @@ init:
        swap d1
        move d1,6(a1)
 
+       ; copy logo to screen
+       lea logo,a0
+       lea LogoScreen,a1
+       add.l #10,a1
+
+       
+       move #logoh*logobitplanes-1,d0
+.copy
+       move #logobpl-1,d1
+.copyByte:
+       move.b (a0)+,(a1)+
+       dbf d1,.copyByte
+       sub.l #logobpl,a1
+       lea logoScreenBpl(a1),a1
+       dbf d0,.copy
+
+       ;bsr PlotChar
+
        movem.l (sp)+,d0-a6
+
+       
+
        rts
 
 font2_char_w = 32
@@ -476,7 +507,7 @@ FontTbl:
        dc.b 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26
        EVEN
 
-
+       IF 1=0
 scrollY = 100
 PlotChar:
        movem.l d0-a6,-(sp)
@@ -487,14 +518,15 @@ PlotChar:
        move.l #$09f00000,bltcon0(a5)
        move.l #$ffffffff,bltafwm(a5)
        move.l #Font,bltapt(a5)
-       move.l #Screen+ScrBpl*fontbpls*scrollY,bltdpt(a5)
+       move.l #LogoScreen+logoScreenBpl*logobitplanes*scrollY,bltdpt(a5)
        move.w #(width-16)/8,bltamod(a5)
-       move.w #((w-16)/8)+(w/8*2),bltdmod(a5)
+       move.w #((logoScreenW-16)/8)+(logoScreenW/8*4),bltdmod(a5)
 
 
        move.w #8*1*64+1,bltsize(a5)
        movem.l (sp)+,d0-a6
        rts
+       endc
 
 scrollit:
 bltx   =0
@@ -855,9 +887,9 @@ dt:		ds.b	dt_SIZEOF
 ScrollPtr:
        dc.l ScrollText
 ScrollText:
-       dc.b "     JOKERX IS PROUD TO PRESENT: HV23 DAY XX"
+       dc.b "     JOKERX IS PROUD TO PRESENT: HV23 DAY 21"
        dc.b " ----- "
-       dc.b "CHALLENGE DONE BY: JOKERX ON DECEMBER 13,2023"
+       dc.b "CHALLENGE DONE BY: JOKERX ON DECEMBER 18,2023"
        dc.b " ----- "
        dc.b "GREETS GO OUT TO JOGEIR LILJEDAHL FOR THE MUSIC AND TO ARNAUD CARRE FOR LSP"
        dc.b " ----- "
@@ -1059,10 +1091,10 @@ CopBplP:
        dc.w bplpt+$12,$0
        dc.w diwstrt,$2c81
        dc.w diwstop,$2cc1
-       dc.w ddfstrt,$38+logomargin/2
-       dc.w ddfstop,$d0-logomargin/2
-       dc.w bpl1mod,logobwid-logobpl
-       dc.w bpl2mod,logobwid-logobpl
+       dc.w ddfstrt,$38;+logomargin/2
+       dc.w ddfstop,$d0;-logomargin
+       dc.w bpl1mod,logoScreenBpl*logobitplanes-(320/8)
+       dc.w bpl2mod,logoScreenBpl*logobitplanes-(320/8)
        
        dc.w color,logobgcolor
 
@@ -1074,12 +1106,11 @@ CopBplP:
        dc.w $01A8,$0977,$01AA,$0B55,$01AC,$0E45,$01AE,$0e67
        dc.w $01B0,$0B86,$01B2,$0A88,$01B4,$0B99,$01B6,$0CAA
        dc.w $01B8,$0CBB,$01BA,$0DB8,$01BC,$0DCC,$01BE,$0EDD
-       
        dc.w bplcon0,logobitplanes*$1000+$200
 
        dc.w $2c07,$fffe
-       dc.w $180,logobgcolor
 
+       
 waitras1:
        dc.w $8007,$fffe
        dc.w $180,$77c
@@ -1099,9 +1130,9 @@ waitras6:
        dc.w $8507,$fffe
        dc.w $180,logobgcolor
 
-       dc.w $bd07,$fffe
+       dc.w $bf07,$fffe
        dc.w bplcon0,$0200
-       dc.w $bde8,$fffe
+       dc.w $bfe8,$fffe
 
        ;dc.w $180,bgcolor
 Font2PalP:
@@ -1117,6 +1148,8 @@ ScrBplP:
        dc.w bplpt+$a,$0
        dc.w bpl1mod,ScrBpl*fontbpls-320/8
        dc.w bpl2mod,ScrBpl*fontbpls-320/8
+       dc.w diwstrt,$2c81
+       dc.w diwstop,$2cc1
        dc.w ddfstrt,$38
        dc.w ddfstop,$d0
 
@@ -1243,4 +1276,6 @@ LSPMusic:	incbin	"music/christ_1.lsmusic"
        SECTION TutBSS,BSS_C
 Screen:
        ds.b SCREEN_MEMSIZE
+LogoScreen:
+       ds.b LogoScreen_MemSize
 END
