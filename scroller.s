@@ -38,7 +38,7 @@ offset_fontspace = $844
 offset_fontkern = $a06
 
 SCREEN_LINE		= ScrBpl*fontbpls
-SCREEN_MEMSIZE		= SCREEN_LINE*h
+SCREEN_MEMSIZE	= SCREEN_LINE*h
 
 
 LogoScreen_Line     = logoScreenBpl*logobitplanes
@@ -56,7 +56,7 @@ gfxBase:	rs.l	1
 dt_SIZEOF:	rs.b	0
 
 start:
-       ;movem.l d1-a6,-(sp)
+       movem.l d1-a6,-(sp)
 
        bsr DoVariables
        bsr OpenGraphicsLibrary
@@ -66,11 +66,11 @@ start:
 **********************************
 Quit:  bsr EnableOs
 Exit:	bsr.w	CloseGraphicsLibrary
-       beq.w	Exit
+       ;beq.w	Exit
        move.l dt+oldStack(pc),a7
 
-       ;movem.l (sp)+,d1-a6
-       ;moveq #0,d0
+       movem.l (sp)+,d1-a6
+       moveq #0,d0
        rts                         ;end of program return to AmigaOS
 
        
@@ -84,8 +84,8 @@ ProgramLoop:
        move #$87e0,dmacon(a5)         ;enable priority,all,bitpln,copper,blitter DMA
        move.w	#$e000,intena(a5)
 
-       move #$4c,d7                ;start y position
-       moveq #1,d6                  ;y add
+       ;move #$4c,d7                ;start y position
+       ;moveq #1,d6                  ;y add
 
        bsr main
 
@@ -278,10 +278,27 @@ mainloop:
 .normb:
        bsr BounceScroller
 
-       add.b #1,Spr+1
+       cmp.b #$ef,Spr1
+       bne .dontReset
+       move.b #0,Spr1
+       move.b #$10,Spr1+2
 
-       lea Sine,a0
-       move.w SineCtr,d6
+.dontReset:
+       add.b #1,Spr1                 ;move sprite to the right
+       add.b #1,Spr1+2   
+                         
+       cmp.b #$ef,Spr2
+       bne .dontReset2
+       move.b #0,Spr2
+       move.b #$10,Spr2+2
+
+.dontReset2:
+       add.b #1,Spr2                 ;move sprite to the right
+       add.b #1,Spr2+2                   ;move sprite to the right
+
+.endSprite:
+       lea Sine,a0                        ;move the copper bar depending on the
+       move.w SineCtr,d6                  ;pre calced sine wave
        move.w #$2c+75,d7
        add.w (a0,d6.w),d7
 
@@ -306,7 +323,7 @@ ok2:
 
        ;move.l #waitras1,a0
 
-       bsr scrollit
+       bsr scrollit                ; scroll the plotted text to the left
 
        move.w ScrollCtr,d0         ; plot new char every 32 pixels
        addq.w #4,d0                ; cause of blitter scrolling
@@ -369,18 +386,27 @@ init:
        dbf d0,.l
        ENDC
 
-       lea Spr,a1
-       move.l a1,d0
-       lea SprP,a1
-       swap d0
-       move d0,2(a1)
-       swap d0
-       move d0,6(a1)
+       lea Spr1,a1
+       lea SprP,a2
+       moveq #2-1,d1
 
+.nextSprite
+       move.l a1,d0
+       
+       swap d0
+       move d0,2(a2)
+       swap d0
+       move d0,6(a2)
+       
+       add #Spr1Size,a1
+       addq #8,a2
+       dbf d1,.nextSprite
+
+       if 1=1
        lea NullSpr,a1
        move.l a1,d0
-       lea SprP+8,a1
-       move #7-1,d1
+       lea SprP+16,a1
+       move #6-1,d1
 .l2:
        swap d0
        move d0,2(a1)
@@ -390,6 +416,7 @@ init:
        addq #8,a1
 
        dbf d1,.l2
+       endc
 
        lea LogoScreen,a0
        lea CopBplP,a1
@@ -635,7 +662,7 @@ StartMusic:
        rts
 
 
-rotateMoves:	dc.b	-1, 3, 1, 0
+rotateMoves:	              dc.b	-1, 3, 1, 0
 				dc.b	10, -1, 1, 0
 				dc.b	11, -1, 1, 0
 				dc.b	-1, 1, 1, 1
@@ -802,6 +829,8 @@ RotateQrCode2:
 		rts
 
 
+;--------------------------------------------------------------
+
 PlotQRCode:
 		lea		qrCode,a0
 		clr.l	d6
@@ -889,7 +918,7 @@ ScrollPtr:
 ScrollText:
        dc.b "     JOKERX IS PROUD TO PRESENT: HV23 DAY 21"
        dc.b " ----- "
-       dc.b "CHALLENGE DONE BY: JOKERX ON DECEMBER 18,2023"
+       dc.b "CHALLENGE DONE BY: JOKERX ON DECEMBER 18, 2023"
        dc.b " ----- "
        dc.b "GREETS GO OUT TO JOGEIR LILJEDAHL FOR THE MUSIC AND TO ARNAUD CARRE FOR LSP"
        dc.b " ----- "
@@ -901,7 +930,7 @@ ScrollText:
        DC.B "CALL OUR BOARDS"
        dc.b " ----- "
        dc.b "$ HAPPY ISLAND $ JOKERX WORLD HQ (555)555-1337"
-       dc.b " ----- "
+       dc.b "                 "
        
 ScrollTextWrap:
 LastChar:
@@ -926,31 +955,53 @@ Sine:  incbin "Sine.75.400.w"
 SineEnd:
 
        SECTION TutData,DATA_C
-Spr:
-       dc.w $a040,$b000
-       dc.w %0000011111000000,%0000000000000000
-       dc.w %0001111111110000,%0000000000000000
-       dc.w %0011111111111000,%0000000000000000
-       dc.w %0111111111111100,%0000000000000000
-       dc.w %0110011111001100,%0001100000110000
-       dc.w %1110011111001110,%0001100000110000
-       dc.w %1111111111111110,%0000000000000000
-       dc.w %1111111111111110,%0000000000000000
-       dc.w %1111111111111110,%0010000000001000
-       dc.w %1111111111111110,%0001100000110000
-       dc.w %0111111111111100,%0000011111000000
-       dc.w %0111111111111100,%0000000000000000
-       dc.w %0011111111111000,%0000000000000000
-       dc.w %0001111111110000,%0000000000000000
-       dc.w %0000011111000000,%0000000000000000
+Spr1:
+       dc.w $0050,$1000
+       dc.w %0000001010000000,%0000000000000000
+       dc.w %0010010101001000,%0000000000000000
+       dc.w %0101001010010100,%0000000000000000
+       dc.w %1001011011010010,%0000000000000000
+       dc.w %0110110001101100,%0000001010000000
+       dc.w %0001000100010000,%0000010001000000
+       dc.w %0001010101010000,%0000100100100000
+       dc.w %0001001010010000,%0000101010100000
+       dc.w %0001010101010000,%0000100100100000
+       dc.w %0001000100010000,%0000010001000000
+       dc.w %0110110001101100,%0000001010000000
+       dc.w %1001001010010010,%0000000000000000
+       dc.w %0101001010010100,%0000000000000000
+       dc.w %0010010101001000,%0000000000000000
+       dc.w %0000001010000000,%0000000000000000
        dc.w %0000000000000000,%0000000000000000
        dc.w 0,0
+Spr1Size equ *-Spr1
+Spr2:
+       dc.w $10c0,$2000
+       dc.w %0000001010000000,%0000000000000000
+       dc.w %0010010101001000,%0000000000000000
+       dc.w %0101001010010100,%0000000000000000
+       dc.w %1001011011010010,%0000000000000000
+       dc.w %0110110001101100,%0000001010000000
+       dc.w %0001000100010000,%0000010001000000
+       dc.w %0001010101010000,%0000100100100000
+       dc.w %0001001010010000,%0000101010100000
+       dc.w %0001010101010000,%0000100100100000
+       dc.w %0001000100010000,%0000010001000000
+       dc.w %0110110001101100,%0000001010000000
+       dc.w %1001001010010010,%0000000000000000
+       dc.w %0101001010010100,%0000000000000000
+       dc.w %0010010101001000,%0000000000000000
+       dc.w %0000001010000000,%0000000000000000
+       dc.w %0000000000000000,%0000000000000000
+       dc.w 0,0
+Spr2Length  EQU     *-Spr2
 
 NullSpr:
        dc.w $2a20,$2b00
        dc.w 0,0
        dc.w 0,0
 
+       
 copper2:
        dc.w $1fc,0
        dc.w $100,$0200
@@ -973,6 +1024,7 @@ copper2bplP:
        dc.w $ffff,$fffe            ; copper list end
 copper2E:
 
+       IF 1=0
 BarBehind:
        dc.w $558
        dc.w $0111,$0322,$0411
@@ -1049,6 +1101,7 @@ BarInFront:
        dc.w $0111,$0322,$0411
        dc.w $0712,$0643,$0334,$0556
 
+       ENDC
 copper:
        dc.w $1fc,0                 ; slow fetch mode, AGA compatibility
        dc.w bplcon0,$0200             ; enable color burst output signal
@@ -1102,14 +1155,13 @@ CopBplP:
        dc.w $0188,$0712,$018A,$0643,$018C,$0334,$018E,$0556
        dc.w $0190,$0812,$0192,$0923,$0194,$0833,$0196,$0933
        dc.w $0198,$0A23,$019A,$0A34,$019C,$0C34,$019E,$0944
-       dc.w $01A0,$0955,$01A2,$0c12,$01A4,$0000,$01A6,$0000
+       dc.w $01A0,$0955,$01A2,$027c,$01A4,$0bef,$01A6,$06bf
        dc.w $01A8,$0977,$01AA,$0B55,$01AC,$0E45,$01AE,$0e67
        dc.w $01B0,$0B86,$01B2,$0A88,$01B4,$0B99,$01B6,$0CAA
        dc.w $01B8,$0CBB,$01BA,$0DB8,$01BC,$0DCC,$01BE,$0EDD
        dc.w bplcon0,logobitplanes*$1000+$200
 
        dc.w $2c07,$fffe
-
        
 waitras1:
        dc.w $8007,$fffe
@@ -1130,14 +1182,10 @@ waitras6:
        dc.w $8507,$fffe
        dc.w $180,logobgcolor
 
-       dc.w $bf07,$fffe
+       dc.w $c7df,$fffe
+       dc.w $180,$fff
        dc.w bplcon0,$0200
-       dc.w $bfe8,$fffe
-
-       ;dc.w $180,bgcolor
-Font2PalP:
-       dc.w $0182,$0BEF,$0184,$09CF,$0186,$07AD
-       dc.w $0188,$058B,$018A,$0369,$018C,$0147,$018E,$0C22
+       ;dc.w $c8e8,$fffe
 
 ScrBplP:
        dc.w bplpt,$0                 ; bitplane0 address
@@ -1148,90 +1196,93 @@ ScrBplP:
        dc.w bplpt+$a,$0
        dc.w bpl1mod,ScrBpl*fontbpls-320/8
        dc.w bpl2mod,ScrBpl*fontbpls-320/8
-       dc.w diwstrt,$2c81
-       dc.w diwstop,$2cc1
-       dc.w ddfstrt,$38
-       dc.w ddfstop,$d0
-
-       dc.w $be07,$fffe
-       dc.w $180,$eef
-       dc.w $bf07,$fffe
-       dc.w $180,$fff
-       dc.w $c007,$fffe
-       dc.w $180,$eef
-
-       dc.w $c107,$fffe
-       dc.w $180,$ddf
-       dc.w $c207,$fffe
-       dc.w $180,$eef
-       dc.w $c307,$fffe
-       dc.w $180,$ddf
-
-       dc.w $c407,$fffe
-       dc.w $180,$ccf
-       dc.w $c507,$fffe
-       dc.w $180,$ddf
-       dc.w $c607,$fffe
-       dc.w $180,$ccf
-
-       dc.w $c707,$fffe
-       dc.w $180,$bbf
-       dc.w $c807,$fffe
-       dc.w $180,$ccf
-       dc.w $c907,$fffe
-       dc.w $180,$bbf
-
+       
+       
+       dc.w $c801,$fffe
        dc.w bplcon0,fontbpls*$1000+$200 ; set bitplane(s)
+       
+Font2PalP:
+       dc.w $0182,$0BEF,$0184,$09CF,$0186,$07AD
+       dc.w $0188,$058B,$018A,$0369,$018C,$0147,$018E,$0C22
 
+       dc.w $c907,$fffe
+       dc.w $180,$eef
        dc.w $ca07,$fffe
-       dc.w $180,$aaf
+       dc.w $180,$fff
        dc.w $cb07,$fffe
-       dc.w $180,$bbf
+       dc.w $180,$eef
+
        dc.w $cc07,$fffe
-       dc.w $180,$aaf
-
+       dc.w $180,$ddf
        dc.w $cd07,$fffe
-       dc.w $180,$99f
+       dc.w $180,$eef
        dc.w $ce07,$fffe
-       dc.w $180,$aaf
+       dc.w $180,$ddf
+
        dc.w $cf07,$fffe
-       dc.w $180,$99f
-
+       dc.w $180,$ccf
        dc.w $d007,$fffe
-       dc.w $180,$88f
+       dc.w $180,$ddf
        dc.w $d107,$fffe
-       dc.w $180,$99f
+       dc.w $180,$ccf
+
        dc.w $d207,$fffe
-       dc.w $180,$88f
-
+       dc.w $180,$bbf
        dc.w $d307,$fffe
-       dc.w $180,$77f
+       dc.w $180,$ccf
        dc.w $d407,$fffe
-       dc.w $180,$88f
+       dc.w $180,$bbf
+
+       
+
        dc.w $d507,$fffe
-       dc.w $180,$77f
-
+       dc.w $180,$aaf
        dc.w $d607,$fffe
-       dc.w $180,$66f
+       dc.w $180,$bbf
        dc.w $d707,$fffe
-       dc.w $180,$77f
+       dc.w $180,$aaf
+
        dc.w $d807,$fffe
-       dc.w $180,$66f
-
+       dc.w $180,$99f
        dc.w $d907,$fffe
-       dc.w $180,$55f
+       dc.w $180,$aaf
        dc.w $da07,$fffe
-       dc.w $180,$66f
+       dc.w $180,$99f
+
        dc.w $db07,$fffe
-       dc.w $180,$55f
-
+       dc.w $180,$88f
        dc.w $dc07,$fffe
-       dc.w $180,$44f
+       dc.w $180,$99f
        dc.w $dd07,$fffe
-       dc.w $180,$55f
-       dc.w $de07,$fffe
-       dc.w $180,bgcolor
+       dc.w $180,$88f
 
+       dc.w $de07,$fffe
+       dc.w $180,$77f
+       dc.w $df07,$fffe
+       dc.w $180,$88f
+       dc.w $e007,$fffe
+       dc.w $180,$77f
+
+       dc.w $e107,$fffe
+       dc.w $180,$66f
+       dc.w $e207,$fffe
+       dc.w $180,$77f
+       dc.w $e307,$fffe
+       dc.w $180,$66f
+
+       dc.w $e407,$fffe
+       dc.w $180,$55f
+       dc.w $e507,$fffe
+       dc.w $180,$66f
+       dc.w $e607,$fffe
+       dc.w $180,$55f
+
+       dc.w $e707,$fffe
+       dc.w $180,$44f
+       dc.w $e807,$fffe
+       dc.w $180,$55f
+       dc.w $e907,$fffe
+       dc.w $180,bgcolor
 
        dc.w $f507,$fffe
        
@@ -1243,9 +1294,11 @@ ScrBplP:
        dc.w $ffff,$fffe            ; copper list end
 CopperE:
 
+       IF 1=0
 Font:
        INCBIN "font.font"               ; 8x8
 FontE:
+       ENDC
 Font2:
        INCBIN "font_bitmap.raw"
 Font2E:
@@ -1264,7 +1317,6 @@ qrCode:
 	incbin "qrcode_hv23_shuffled.bin"
 	endc
 	even
-qrCodeLength  EQU     *-qrCode
 
        SECTION sound,DATA_C
 LSPBank:	incbin	"music/christ_1.lsbank"
