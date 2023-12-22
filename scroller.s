@@ -1,15 +1,24 @@
        SECTION Tut,CODE_C
 
+
+TEST_SKIP     SET    0
+SOLVE_QR      SET    0
+DO_FINAL_CHECK SET   0
 RELEASE	SET	1
+countTest = $1337
 w      =352
 h      =256
 bplsize=w*h/8
 ScrBpl=w/8
 logobgcolor = $fff
 bgcolor=$44f
+scrollTextColor=$C22
+
+xor_key = $42
 
 plotY = 70
-countLoops = $1337
+countLoops = $1337;$563f
+countLoopsReset = $4308
 QR_SCREEN_WIDTH = 320
 QR_SCREEN_BPL = 1
 QR_SCREEN_BROW = QR_SCREEN_WIDTH/8
@@ -86,6 +95,22 @@ ProgramLoop:
 
        ;move #$4c,d7                ;start y position
        ;moveq #1,d6                  ;y add
+
+       IFEQ RELEASE
+       move.l #ScrollTextE-ScrollText-1,d1
+       clr.b  d0
+       lea ScrollText,a0
+       lea $60000,a1
+.encrypt:
+       move.b (a0)+,d0
+       eor #xor_key,d0
+       move.b d0,(a1)+
+       dbf d1,.encrypt
+
+       lea $60000,a1
+       ENDC
+
+       
 
        bsr main
 
@@ -192,6 +217,15 @@ CloseGraphicsLibrary:
 OpenGraphicsLibrary:
 		move.l	4.w,a6			;exec base
 		lea	gfxname,a1		;library name
+              move.l #17-1,d1
+.decrypt:
+              IFNE RELEASE
+              move.b (a1),d0
+              eor    #xor_key,d0
+              move.b d0,(a1)+
+              dbf    d1,.decrypt
+              ENDC
+              lea    gfxname,a1
 		jsr	-408(a6)		;exec OldOpenLibrary()
 		lea	dt(pc),a6
 		move.l	d0,gfxBase(a6)		;store result of opening
@@ -238,11 +272,20 @@ DoVariables:
 ShowQrCode:
        movem.l d0-a6,-(sp)
 
+       IFNE DO_FINAL_CHECK
+       move.l RotateCounter,d1
+       sub.l #countLoops,d1
+       divu #countLoopsReset,d1
+       swap d1
+       cmp.w #0,d1
+       bne dontDoExtraRounds
+       bsr RotateQrCodePlanHorizontal
+
+dontDoExtraRounds:
+       endc
+
        move.l #copper2,cop1lc(a5)
        bsr PlotQRCode
-       IFEQ RELEASE
-       lea qrCode,a0
-       ENDC
 
 mainloop2:
        btst #6,$bfe001
@@ -255,11 +298,12 @@ main:
        movem.l d0-a6,-(sp)
 
        moveq	#0,d1
-       IFEQ RELEASE
+       IFNE SOLVE_QR
        move.l	#countLoops,d2
        ;moveq	#1,d1		; 0 = forward, 1 = backward
 .loop
        bsr RotateQrCodePlanHorizontal
+       addq.l  #1,RotateCounter
        sub.l	#1,d2
        tst.l	d2
        bne .loop
@@ -276,27 +320,11 @@ mainloop:
 
 ;--------frame loop start---------    
 .normb:
+       IFNE DO_FINAL_CHECK
+       addq.l  #1,RotateCounter
+       endc
        bsr BounceScroller
 
-       cmp.b #$ef,Spr1
-       bne .dontReset
-       move.b #0,Spr1
-       move.b #$10,Spr1+2
-
-.dontReset:
-       add.b #1,Spr1                 ;move sprite to the right
-       add.b #1,Spr1+2   
-                         
-       cmp.b #$ef,Spr2
-       bne .dontReset2
-       move.b #0,Spr2
-       move.b #$10,Spr2+2
-
-.dontReset2:
-       add.b #1,Spr2                 ;move sprite to the right
-       add.b #1,Spr2+2                   ;move sprite to the right
-
-.endSprite:
        lea Sine,a0                        ;move the copper bar depending on the
        move.w SineCtr,d6                  ;pre calced sine wave
        move.w #$2c+75,d7
@@ -323,6 +351,35 @@ ok2:
 
        ;move.l #waitras1,a0
 
+       cmp.b #$d6,Spr1
+       bne .dontReset
+       move.b #0,Spr1
+       move.b #$10,Spr1+2
+
+.dontReset:
+       add.b #1,Spr1                 ;move sprite to the right
+       add.b #1,Spr1+2   
+                         
+       cmp.b #$d6,Spr2
+       bne .dontReset2
+       move.b #0,Spr2
+       move.b #$10,Spr2+2
+
+.dontReset2:
+       add.b #1,Spr2                 ;move sprite to the right
+       add.b #1,Spr2+2                   ;move sprite to the right
+
+.endSprite:
+
+       move.b DoScroll,d0
+       bne .noscroll
+
+       move.w PauseScrollForFrames,d0
+       beq .dontSkipScroll
+       subq #1,d0
+       move.w d0,PauseScrollForFrames
+       jmp .noscroll
+.dontSkipScroll:
        bsr scrollit                ; scroll the plotted text to the left
 
        move.w ScrollCtr,d0         ; plot new char every 32 pixels
@@ -331,9 +388,10 @@ ok2:
        blo.s .nowrap
 
        move.l ScrollPtr,a0
-       cmp.l #ScrollTextWrap,a0
+       cmp.l #gfxname,a0
        blo.s .noplot
-       lea ScrollText,a0
+       jmp .noscroll
+       ;lea ScrollText,a0
 .noplot:
 
        bsr PlotChar2               ; preserves a0
@@ -344,32 +402,47 @@ ok2:
        sub.w #32,d0
 .nowrap:
        move.w d0,ScrollCtr
+.noscroll:
+       move.b DoColorRotate,d0
+       beq .nowrap2
 
-       IF 1=0
        move.w ColorCycleCtr,d0     ; scroll the color 7
        addq.w #1,d0
-       cmp.w #5,d0
+       cmp.w #1,d0
        blo.s .nowrap2
-       
-       lea Font2PalP,a0
-       add.l #8*4-2,a0
-       add.w #1,(a0)
 
-       sub.w #5,d0
+       ; change color
+       lea rainbowPal,a0                        ;move the copper bar depending on the
+       move.w RainbowPalCounter,d6                  ;pre calced sine wave
+       move.w (a0,d6.w),(Font2PalP+7*4-2)
+       move.w (a0,d6.w),(waitras3+6)
+       addq.w #8,d6
+       cmp.w #rainbowPalE-rainbowPal,d6
+       blt.s .nowrap3
+       moveq #0,d6
+.nowrap3:
+       move.w d6,RainbowPalCounter
 .nowrap2:
        move.w d0,ColorCycleCtr
-       ENDC
-
+       
        
        IFNE RELEASE
+       moveq #0,d1
        bsr RotateQrCodePlanHorizontal
 	ENDC
+
+       IFNE TEST_SKIP
+       addq.l  #1,RotateCounter
+       lea RotateCounter,a3
+       cmp.l #countTest,RotateCounter
+       beq .end
+       ENDC
        
 ;--------frame loop end-----------
 
        btst #6,$bfe001
        bne mainloop
-
+.end:
        movem.l (sp)+,d0-a6
        rts
        
@@ -493,13 +566,57 @@ PlotChar2:           ;a0=scrollptr
        ;lea CUSTOM,a6
        bsr BlitWait
 
+.nextChar:
        moveq #0,d0
        move.b (a0)+,d0                    ;ASCII value
-       move.b d0,LastChar
+       IFNE RELEASE
+       eor #xor_key,d0
+       ENDC
+       ;move.b d0,LastChar
 
        sub.w #32,d0
-       lea FontTbl,a0
-       move.b (a0,d0.w),d0
+       lea FontTbl,a1
+
+       move.b (a1,d0.w),d0
+       bge .noCmdChar
+
+       cmp.b #-1,d0
+       bne .notColorOnOffCmd
+
+       move.b DoColorRotate,d0
+       not d0
+       move.b d0,DoColorRotate
+       jmp .endCmd
+
+.notColorOnOffCmd:
+       cmp.b #-2,d0
+       bne .notResetColorCmd
+       move.w #scrollTextColor,Font2PalP+7*4-2
+       move.w #logobgcolor,waitras3+6
+       jmp .endCmd
+
+.notResetColorCmd
+
+       cmp.b #-3,d0
+       bne .notPauseScrollerForSomeTimeCmd
+
+       move.w #160,PauseScrollForFrames
+       jmp .endCmd
+       
+.notPauseScrollerForSomeTimeCmd:  
+
+       cmp.b #-4,d0
+       bne .notChangeScroll
+       move.b DoScroll,d0
+       not d0
+       move.b d0,DoScroll
+       jmp .noBlt
+
+.notChangeScroll
+.endCmd:
+
+       jmp .nextChar
+.noCmdChar
        divu #10,d0                        ;row
        move.l d0,d1
        swap d1                            ;remainder (column)
@@ -522,11 +639,12 @@ PlotChar2:           ;a0=scrollptr
 
 
        move.w #font2_char_h*font2_bpls*64+2,bltsize(a5)
+.noBlt:
        movem.l (sp)+,d0-a6
        rts
 
 FontTbl:
-       dc.b 47,26,47,47,46,47,47
+       dc.b 47,26,-4,-3,46,-1,-2
        dc.b 45,41,42,47,47,40,43,44,47
        dc.b 30,31,32,33,34,35,36,37,38,39
        dc.b 28,29,47,47,47
@@ -581,12 +699,6 @@ brcorner=blth*ScrBpl*font2_bpls-2
        movem.l (sp)+,d0-a6
        rts
 
-CopyB:        ;d0,a0,a1=count,source,destination
-.l:    move.b (a0)+,(a1)+
-       subq.l #1,d0
-       bne.s .l
-       rts
-
 BlitWait:
        tst dmaconr(a5)                        ;for compatibility
 .waitblit:
@@ -625,7 +737,7 @@ BounceScroller:
        add.w BounceYspeed,d0
        bpl.s .nobounce
        lea BounceYspeed,a3
-       move.w #25,BounceYspeed
+       move.w #20,BounceYspeed
        clr.w d0
 .nobounce:
        move.w d0,BounceY
@@ -718,7 +830,7 @@ RotateQrCodePlanHorizontal:
 		move.b	(a0)+,d4
 		clr.l	d5
 		move.b	(a0)+,d5
-		eor		d1,d5
+              eor	d1,d5
 		bsr RotateQrCode2
 		add.l	d2,a0		
 		dbf		d3,.loop
@@ -915,26 +1027,49 @@ dt:		ds.b	dt_SIZEOF
        SECTION data,DATA_C
 ScrollPtr:
        dc.l ScrollText
+
 ScrollText:
-       dc.b "     JOKERX IS PROUD TO PRESENT: HV23 DAY 21"
+       IFNE RELEASE
+       incbin "strings_enc.raw"
+       ENDC
+
+       IFEQ RELEASE
+       dc.b "     JOKERX IS PROUD TO PRESENT: HV23 DAY 24"
        dc.b " ----- "
-       dc.b "CHALLENGE DONE BY: JOKERX ON DECEMBER 18, 2023"
+       dc.b "CHALLENGE DONE BY: JOKERX ON DECEMBER 22, 2023"
        dc.b " ----- "
-       dc.b "GREETS GO OUT TO JOGEIR LILJEDAHL FOR THE MUSIC AND TO ARNAUD CARRE FOR LSP"
+       dc.b "GREETS GO OUT TO 0XI FOR BETA TESTING, JOGEIR LILJEDAHL "
+       dc.b "FOR THE MUSIC AND TO ARNAUD CARRE FOR LSP"
        dc.b " ----- "
-       dc.b "PRESS LMB TO SHOW QR-CODE OR CONTACT US!      "
+       dc.b "PRESS LMB TO SHOW QR-CODE OR CONTACT US!"
+       dc.b " ----- "
        dc.b "POBOX 1337  1234 WONDERLAND!"
        dc.b " ----- "
-       dc.b "SOON COMING MORE AND MORE AMIGA CHALLENGES FROM $$$$$ JOKERX $$$$$"
+       dc.b "SOON COMING MORE AND MORE AMIGA CHALLENGES FROM $ JOKERX $"
        dc.b " ----- "
        DC.B "CALL OUR BOARDS"
        dc.b " ----- "
        dc.b "$ HAPPY ISLAND $ JOKERX WORLD HQ (555)555-1337"
-       dc.b "                 "
-       
-ScrollTextWrap:
-LastChar:
-       dc.b 0
+       dc.b " ----- "
+       dc.b "YOU MADE IT TO THE END, THANKS FOR READING ALL THE TEXT"
+       dc.b "           -----           "
+       dc.b "YEAH, FOR REALZ, IT'S OVER! ;)"
+       dc.b "           -----           "
+       dc.b "NEVER GONNA GIVE YOU UP :D"
+       dc.b "           -----           "
+       dc.b "OK, ONE MORE EFFECT WITH THE TEXTSCROLLER CAUSE YOU CAN'T STOP READING"
+       dc.b "           -----           "
+       dc.b "    %   SPECIAL GREETS GO OUT TO    $BACHMMA1$#"
+       dc.b "           -----           "
+       dc.b "MERRY X-MAS TO EVERYONE FROM    $HACKVENT$",$22,"graphics.library",0
+       ENDC
+gfxname:      equ *-17
+;gfxname:
+;       dc.b "graphics.library",0
+ScrollTextE:
+
+;LastChar:
+;       dc.b 0
        even
 
 ScrollCtr:
@@ -942,21 +1077,29 @@ ScrollCtr:
 ColorCycleCtr:
        dc.w 0
 BounceY:
-       dc.w 48*8
+       dc.w 0
 BounceYspeed:
        dc.w 0
 BounceYaccel:
        dc.w -1
 SineCtr:
        dc.w 0
-gfxname:
-       dc.b "graphics.library",0,0
+RotateCounter:
+       dc.l 0
+RainbowPalCounter:
+       dc.w 30
+PauseScrollForFrames:
+       dc.w 0
+DoColorRotate:
+       dc.w 0
+DoScroll:
+       dc.w 1
 Sine:  incbin "Sine.75.400.w"
 SineEnd:
 
        SECTION TutData,DATA_C
 Spr1:
-       dc.w $0050,$1000
+       dc.w $2050,$3000
        dc.w %0000001010000000,%0000000000000000
        dc.w %0010010101001000,%0000000000000000
        dc.w %0101001010010100,%0000000000000000
@@ -976,7 +1119,7 @@ Spr1:
        dc.w 0,0
 Spr1Size equ *-Spr1
 Spr2:
-       dc.w $10c0,$2000
+       dc.w $00c0,$1000
        dc.w %0000001010000000,%0000000000000000
        dc.w %0010010101001000,%0000000000000000
        dc.w %0101001010010100,%0000000000000000
@@ -1148,7 +1291,7 @@ CopBplP:
        dc.w ddfstop,$d0;-logomargin
        dc.w bpl1mod,logoScreenBpl*logobitplanes-(320/8)
        dc.w bpl2mod,logoScreenBpl*logobitplanes-(320/8)
-       
+
        dc.w color,logobgcolor
 
        dc.w $0182,$0111,$0184,$0322,$0186,$0411
@@ -1203,8 +1346,7 @@ ScrBplP:
        
 Font2PalP:
        dc.w $0182,$0BEF,$0184,$09CF,$0186,$07AD
-       dc.w $0188,$058B,$018A,$0369,$018C,$0147,$018E,$0C22
-
+       dc.w $0188,$058B,$018A,$0369,$018C,$0147,$018E,scrollTextColor
        dc.w $c907,$fffe
        dc.w $180,$eef
        dc.w $ca07,$fffe
@@ -1294,6 +1436,134 @@ Font2PalP:
        dc.w $ffff,$fffe            ; copper list end
 CopperE:
 
+rainbowPal:
+       dc.w $F00
+       dc.w $F01
+       dc.w $F02
+       dc.w $F03
+       dc.w $F04
+       dc.w $F05
+       dc.w $F06
+       dc.w $F07
+       dc.w $F08
+       dc.w $F09
+       dc.w $F0a
+       dc.w $F0b
+       dc.w $F0c
+       dc.w $F0d
+       dc.w $F0e
+       dc.w $F0f
+       dc.w $e0f
+       dc.w $d0f
+       dc.w $c0f
+       dc.w $b0f
+       dc.w $a0f
+       dc.w $90f
+       dc.w $80f
+       dc.w $70f
+       dc.w $60f
+       dc.w $50f
+       dc.w $40f
+       dc.w $30f
+       dc.w $20f
+       dc.w $10f
+       dc.w $00f
+       dc.w $01f
+       dc.w $02f
+       dc.w $03f
+       dc.w $04f
+       dc.w $05f
+       dc.w $06f
+       dc.w $07f
+       dc.w $08f
+       dc.w $09f
+       dc.w $0af
+       dc.w $0bf
+       dc.w $0cf
+       dc.w $0df
+       dc.w $0ef
+       dc.w $0ff
+       dc.w $0fe
+       dc.w $0fd
+       dc.w $0fc
+       dc.w $0fb
+       dc.w $0fa
+       dc.w $0f9
+       dc.w $0f8
+       dc.w $0f7
+       dc.w $0f6
+       dc.w $0f5
+       dc.w $0f4
+       dc.w $0f3
+       dc.w $0f2
+       dc.w $0f1
+       dc.w $0f0
+       dc.w $1f0
+       dc.w $2f0
+       dc.w $3f0
+       dc.w $4f0
+       dc.w $5f0
+       dc.w $6f0
+       dc.w $7f0
+       dc.w $8f0
+       dc.w $9f0
+       dc.w $af0
+       dc.w $bf0
+       dc.w $cf0
+       dc.w $df0
+       dc.w $ef0
+       dc.w $ff0
+       dc.w $fe0
+       dc.w $fd0
+       dc.w $fc0
+       dc.w $fb0
+       dc.w $fa0
+       dc.w $f90
+       dc.w $f80
+       dc.w $f70
+       dc.w $f60
+       dc.w $f50
+       dc.w $f40
+       dc.w $f30
+       dc.w $f20
+       dc.w $f10
+       dc.w $f00
+rainbowPalE:
+
+colPal32:
+       dc.l $00000000
+       dc.l $00111111
+       dc.l $00222222
+       dc.l $00333333
+       dc.l $00444444
+       dc.l $00555555
+       dc.l $00666666
+       dc.l $00777777
+       dc.l $00888888
+       dc.l $00999999
+       dc.l $00aaaaaa
+       dc.l $00bbbbbb
+       dc.l $00cccccc
+       dc.l $00dddddd
+       dc.l $00eeeeee
+       dc.l $00ffffff
+       dc.l $00eeeeee
+       dc.l $00dddddd
+       dc.l $00cccccc
+       dc.l $00bbbbbb
+       dc.l $00aaaaaa
+       dc.l $00999999
+       dc.l $00888888
+       dc.l $00777777
+       dc.l $00666666
+       dc.l $00555555
+       dc.l $00444444
+       dc.l $00333333
+       dc.l $00222222
+       dc.l $00111111
+       dc.l $00000000
+       dc.l $00000000
+
        IF 1=0
 Font:
        INCBIN "font.font"               ; 8x8
@@ -1311,11 +1581,7 @@ logoE:
 
 
 qrCode:
-	IFEQ RELEASE
 	incbin "qrcode_hv23_shuffled.bin"
-	else
-	incbin "qrcode_hv23_shuffled.bin"
-	endc
 	even
 
        SECTION sound,DATA_C
