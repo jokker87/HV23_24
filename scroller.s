@@ -17,7 +17,7 @@ scrollTextColor=$C22
 xor_key = $42
 
 plotY = 70
-countLoops = $1337;$563f
+countLoops = $1337
 countLoopsReset = $4308
 QR_SCREEN_WIDTH = 320
 QR_SCREEN_BPL = 1
@@ -60,7 +60,7 @@ LogoScreen_MemSize  = LogoScreen_Line*logoh+1000
 oldStack:	rs.l	1
 oldView:	rs.l	1
 oldIntena:	rs.w	1
-oldDma:		rs.w	1
+oldDma:	rs.w	1
 gfxBase:	rs.l	1
 dt_SIZEOF:	rs.b	0
 
@@ -75,7 +75,6 @@ start:
 **********************************
 Quit:  bsr EnableOs
 Exit:	bsr.w	CloseGraphicsLibrary
-       ;beq.w	Exit
        move.l dt+oldStack(pc),a7
 
        movem.l (sp)+,d1-a6
@@ -93,9 +92,6 @@ ProgramLoop:
        move #$87e0,dmacon(a5)         ;enable priority,all,bitpln,copper,blitter DMA
        move.w	#$e000,intena(a5)
 
-       ;move #$4c,d7                ;start y position
-       ;moveq #1,d6                  ;y add
-
        IFEQ RELEASE
        move.l #ScrollTextE-ScrollText-1,d1
        clr.b  d0
@@ -109,8 +105,6 @@ ProgramLoop:
 
        lea $60000,a1
        ENDC
-
-       
 
        bsr main
 
@@ -134,27 +128,27 @@ ProgramLoop:
 ;a6	dt
 ;
 EnableOs:
-		move.l	a6,a4
+       move.l	a6,a4
 
-		move.l	gfxBase(a4),a6
-		jsr	-228(a6)	;gfx WaitBlit()
+       move.l	gfxBase(a4),a6
+       jsr	-228(a6)	;gfx WaitBlit()
 
-		bsr.b	StopDmaAndIntsAtVBlank
+       bsr.b	StopDmaAndIntsAtVBlank
 
-	;restore hardware regs
-		move.w	oldIntena(a4),intena(a5)
-		move.w	oldDma(a4),dmacon(a5)
+       ;restore hardware regs
+       move.w	oldIntena(a4),intena(a5)
+       move.w	oldDma(a4),dmacon(a5)
 
-		jsr	-462(a6)	;gfx DisownBlitter()
+       jsr	-462(a6)	;gfx DisownBlitter()
 
-	;load old view
-		move.l	oldView(a4),a1
-		bsr.b	LoadView
+       ;load old view
+       move.l	oldView(a4),a1
+       bsr.b	LoadView
 
-		move.l	$26(a6),cop1lc(a5)
+       move.l	$26(a6),cop1lc(a5)
 
-		move.l	a4,a6
-		rts
+       move.l	a4,a6
+       rts
 
 StopDmaAndIntsAtVBlank:
        bsr WaitRaster
@@ -169,105 +163,111 @@ StopDmaAndIntsAtVBlank:
 ;	a6 - gfx base
 ;	a1 - view
 LoadView:
-		jsr	-222(a6)	;gfx LoadView(view)
-		jsr	-270(a6)	;gfx WaitTOF()
-		jmp	-270(a6)	;gfx WaitTOF()
+       jsr	-222(a6)	;gfx LoadView(view)
+       jsr	-270(a6)	;gfx WaitTOF()
+       jmp	-270(a6)	;gfx WaitTOF()
 
 DisableOs:
 	;save old view
-		move.l	gfxBase(a6),a5
-		move.l	$22(a5),oldView(a6)
-		exg	a5,a6
+       move.l	gfxBase(a6),a5
+       move.l	$22(a5),oldView(a6)
+       exg	a5,a6
 
 	;set no view 
-		sub.l	a1,a1
-		bsr.b	LoadView
+       sub.l	a1,a1
+       bsr.b	LoadView
 
 	;takeover the blitter
-		jsr	-456(a6)	;gfx OwnBlitter
-		jsr	-228(a6)	;gfx WaitBlit
+       jsr	-456(a6)	;gfx OwnBlitter
+       jsr	-228(a6)	;gfx WaitBlit
 
-		move.l	a5,a6
+       move.l	a5,a6
 
 	;store hardware registers
-		lea	CUSTOM,a5
-		move.w	#$c000,d1
+       lea	CUSTOM,a5
+       move.w	#$c000,d1
 
-		move.w	intenar(a5),d0
-		or.w	d1,d0
-		move.w	d0,oldIntena(a6)
+       move.w	intenar(a5),d0
+       or.w	d1,d0
+       move.w	d0,oldIntena(a6)
 
-		add.w	d1,d1
-		move.w	dmaconr(a5),d0
-		or.w	d1,d0
-		move.w	d0,oldDma(a6)
+       add.w	d1,d1
+       move.w	dmaconr(a5),d0
+       or.w	d1,d0
+       move.w	d0,oldDma(a6)
 
-		bra.b	StopDmaAndIntsAtVBlank
+       or.b	#%10000000,$bfd100 ; CIABPRB stops drive motors
+       and.b	#%10000111,$bfd100 ; CIABPRB
+
+       bra.b	StopDmaAndIntsAtVBlank
 
 CloseGraphicsLibrary:
-		move.l	gfxBase(a6),a1	;library base
-		move.l	4.w,a6		;exec base
+       move.l	gfxBase(a6),a1	;library base
+       move.l	4.w,a6		;exec base
 	IFND KICKSTART2
-		move.l	a1,d0		;trick to check if lib base is zero
-		beq.b	.exit
+       move.l	a1,d0		;trick to check if lib base is zero
+       beq.b	.exit
 	ENDC
-		jsr	-414(a6)	;exec CloseLibrary
-.exit		rts
+       jsr	-414(a6)	;exec CloseLibrary
+.exit
+       rts
 
 OpenGraphicsLibrary:
-		move.l	4.w,a6			;exec base
-		lea	gfxname,a1		;library name
-              move.l #17-1,d1
+       move.l	4.w,a6			;exec base
+       lea	gfxname,a1		;library name
+       move.l #17-1,d1
 .decrypt:
-              IFNE RELEASE
-              move.b (a1),d0
-              eor    #xor_key,d0
-              move.b d0,(a1)+
-              dbf    d1,.decrypt
-              ENDC
-              lea    gfxname,a1
-		jsr	-408(a6)		;exec OldOpenLibrary()
-		lea	dt(pc),a6
-		move.l	d0,gfxBase(a6)		;store result of opening
-		rts
+       IFNE RELEASE
+       move.b (a1),d0
+       eor    #xor_key,d0
+       move.b d0,(a1)+
+       dbf    d1,.decrypt
+       ENDC
+       lea    gfxname,a1
+       jsr	-408(a6)		;exec OldOpenLibrary()
+       lea	dt(pc),a6
+       move.l	d0,gfxBase(a6)		;store result of opening
+       rts
 
 DoVariables:
-		lea	dt(pc),a6
+       lea	dt(pc),a6
 
 	;clear dt
-		move.l	a6,a0
-		moveq	#0,d0
-		move.w	#dt_SIZEOF/4-1,d1
-.clear		move.l	d0,(a0)+
-		dbf	d1,.clear
+       move.l	a6,a0
+       moveq	#0,d0
+       move.w	#dt_SIZEOF/4-1,d1
+.clear	move.l	d0,(a0)+
+	dbf	d1,.clear
 
        lea	Screen,a0
 
        IFND KICKSTART2
 	;clear BSS area 
-		move.l	a0,a1
-		move.l	#SCREEN_MEMSIZE/4,d1
-.clearBSS	move.l	d0,(a1)+
-		subq.l	#1,d1
-		bne.b	.clearBSS
+       move.l	a0,a1
+       move.l	#SCREEN_MEMSIZE/4,d1
+.clearBSS	
+       move.l	d0,(a1)+
+       subq.l	#1,d1
+       bne.b	.clearBSS
 	ENDC
 
        lea	LogoScreen,a0
 
        IFND KICKSTART2
 	;clear BSS area 
-		move.l	a0,a1
-		move.l	#LogoScreen_MemSize/4,d1
-.clearBSS2	move.l	d0,(a1)+
-		subq.l	#1,d1
-		bne.b	.clearBSS2
+       move.l	a0,a1
+       move.l	#LogoScreen_MemSize/4,d1
+.clearBSS2
+       move.l	d0,(a1)+
+       subq.l	#1,d1
+       bne.b	.clearBSS2
 	ENDC
 
 	;store old stack pointer
-		lea	4(a7),a0
-		move.l	a0,oldStack(a6)
+       lea	4(a7),a0
+       move.l	a0,oldStack(a6)
 
-		rts
+       rts
 
 ShowQrCode:
        movem.l d0-a6,-(sp)
@@ -297,10 +297,10 @@ mainloop2:
 main:
        movem.l d0-a6,-(sp)
 
-       moveq	#0,d1
+       moveq	#0,d1                ; 0 = forward, 1 = backward
+
        IFNE SOLVE_QR
        move.l	#countLoops,d2
-       ;moveq	#1,d1		; 0 = forward, 1 = backward
 .loop
        bsr RotateQrCodePlanHorizontal
        addq.l  #1,RotateCounter
@@ -314,7 +314,6 @@ mainloop:
        bsr.w WaitRaster2
        btst #2,$dff016
        bne.b .normb
-       ;move.w #$02b,d0
        bsr.w WaitRaster2
        bra.b mainloop
 
@@ -349,15 +348,13 @@ ok2:
        add.w #4+(4*1),a0
        dbf d1,.l
 
-       ;move.l #waitras1,a0
-
        cmp.b #$d6,Spr1
        bne .dontReset
        move.b #0,Spr1
        move.b #$10,Spr1+2
 
 .dontReset:
-       add.b #1,Spr1                 ;move sprite to the right
+       add.b #1,Spr1                 ;move sprite1 to the right
        add.b #1,Spr1+2   
                          
        cmp.b #$d6,Spr2
@@ -366,8 +363,8 @@ ok2:
        move.b #$10,Spr2+2
 
 .dontReset2:
-       add.b #1,Spr2                 ;move sprite to the right
-       add.b #1,Spr2+2                   ;move sprite to the right
+       add.b #1,Spr2                 ;move sprite2 to the right
+       add.b #1,Spr2+2                   
 
 .endSprite:
 
@@ -391,7 +388,6 @@ ok2:
        cmp.l #gfxname,a0
        blo.s .noplot
        jmp .noscroll
-       ;lea ScrollText,a0
 .noplot:
 
        bsr PlotChar2               ; preserves a0
@@ -424,7 +420,6 @@ ok2:
        move.w d6,RainbowPalCounter
 .nowrap2:
        move.w d0,ColorCycleCtr
-       
        
        IFNE RELEASE
        moveq #0,d1
@@ -507,8 +502,6 @@ init:
 
        lea CopBplP,a1
 
-       
-
        lea Font2E-7*2,a0
        lea Font2PalP+2,a1
        moveq #7-1,d0
@@ -529,7 +522,6 @@ init:
        lea LogoScreen,a1
        add.l #10,a1
 
-       
        move #logoh*logobitplanes-1,d0
 .copy
        move #logobpl-1,d1
@@ -540,11 +532,7 @@ init:
        lea logoScreenBpl(a1),a1
        dbf d0,.copy
 
-       ;bsr PlotChar
-
        movem.l (sp)+,d0-a6
-
-       
 
        rts
 
@@ -563,7 +551,6 @@ font2_row = font2_w*font2_bpls*font2_char_h/8
 font2_col = 4
 PlotChar2:           ;a0=scrollptr
        movem.l d0-a6,-(sp)
-       ;lea CUSTOM,a6
        bsr BlitWait
 
 .nextChar:
@@ -572,7 +559,6 @@ PlotChar2:           ;a0=scrollptr
        IFNE RELEASE
        eor #xor_key,d0
        ENDC
-       ;move.b d0,LastChar
 
        sub.w #32,d0
        lea FontTbl,a1
@@ -631,7 +617,6 @@ PlotChar2:           ;a0=scrollptr
        
        move.l #$09f00000,bltcon0(a5)
        move.l #$ffffffff,bltafwm(a5)
-       ;move.l #Font2+(font2_selected_y*font2_char_h*font2_line*font2_bpls)+(font2_selected_x*4),bltapt(a6)
        move.l d0,bltapt(a5)
        move.l #Screen+ScrBpl*fontbpls*scrollY2+scrollX2/8,bltdpt(a5)
        move.w #font2_bpl-font2_col,bltamod(a5)
@@ -650,28 +635,9 @@ FontTbl:
        dc.b 28,29,47,47,47
        dc.b 27,47
        dc.b 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26
+       dc.b 47,47,47,47,47,47
+       dc.b 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,18,17,18,19,20,21,48,49,24,25,26
        EVEN
-
-       IF 1=0
-scrollY = 100
-PlotChar:
-       movem.l d0-a6,-(sp)
-       ;lea CUSTOM,a6
-
-       bsr BlitWait
-
-       move.l #$09f00000,bltcon0(a5)
-       move.l #$ffffffff,bltafwm(a5)
-       move.l #Font,bltapt(a5)
-       move.l #LogoScreen+logoScreenBpl*logobitplanes*scrollY,bltdpt(a5)
-       move.w #(width-16)/8,bltamod(a5)
-       move.w #((logoScreenW-16)/8)+(logoScreenW/8*4),bltdmod(a5)
-
-
-       move.w #8*1*64+1,bltsize(a5)
-       movem.l (sp)+,d0-a6
-       rts
-       endc
 
 scrollit:
 bltx   =0
@@ -683,7 +649,6 @@ bltw   =w/16
 bltskip=(w-w)/8
 brcorner=blth*ScrBpl*font2_bpls-2
        movem.l d0-a6,-(sp)
-       ;lea CUSTOM,a6
 
        bsr BlitWait
 
@@ -693,7 +658,6 @@ brcorner=blth*ScrBpl*font2_bpls-2
        move.l #Screen+bltoffs+brcorner,bltdpt(a5)
        move.w #bltskip,bltamod(a5)
        move.w #bltskip,bltdmod(a5)
-
 
        move.w #blth*fontbpls*64+bltw,bltsize(a5)
        movem.l (sp)+,d0-a6
@@ -774,71 +738,72 @@ StartMusic:
        rts
 
 
-rotateMoves:	              dc.b	-1, 3, 1, 0
-				dc.b	10, -1, 1, 0
-				dc.b	11, -1, 1, 0
-				dc.b	-1, 1, 1, 1
-				dc.b	13, -1, 1, 0
-				dc.b	14, -1, 1, 0
-				dc.b	-1, 1, 1, 1
-				dc.b	-1, 2, 1, 1
-				dc.b	17, 2, 1, 0
-				dc.b	18, -1, 1, 0
-				dc.b	19, -1, 1, 0
-				dc.b	-1, 1, 2, 1
-				dc.b	14, -1, 1, 0
-				dc.b	10, -1, 1, 0
-				dc.b	-1, 1, 1, 0
-				dc.b	-1, 3, 1, 0
-				dc.b	13, 2, 1, 0
-				dc.b	-1, 1, 1, 0
-				dc.b	15, 1, 1, 1
-				dc.b	20, 1, 1, 1
-				dc.b	-1, 2, 1, 0
-				dc.b	-1, 2, 1, 1
-				dc.b	19, -1, 1, 0
-				dc.b	-1, 1, 1, 1
+rotateMoves:
+       dc.b	-1, 3, 1, 0
+       dc.b	10, -1, 1, 0
+       dc.b	11, -1, 1, 0
+       dc.b	-1, 1, 1, 1
+       dc.b	13, -1, 1, 0
+       dc.b	14, -1, 1, 0
+       dc.b	-1, 1, 1, 1
+       dc.b	-1, 2, 1, 1
+       dc.b	17, 2, 1, 0
+       dc.b	18, -1, 1, 0
+       dc.b	19, -1, 1, 0
+       dc.b	-1, 1, 2, 1
+       dc.b	14, -1, 1, 0
+       dc.b	10, -1, 1, 0
+       dc.b	-1, 1, 1, 0
+       dc.b	-1, 3, 1, 0
+       dc.b	13, 2, 1, 0
+       dc.b	-1, 1, 1, 0
+       dc.b	15, 1, 1, 1
+       dc.b	20, 1, 1, 1
+       dc.b	-1, 2, 1, 0
+       dc.b	-1, 2, 1, 1
+       dc.b	19, -1, 1, 0
+       dc.b	-1, 1, 1, 1
 rotateMovesLength  EQU     *-rotateMoves
 
 rectWidth=4
 rectHeight=29
 
 RotateQrCodePlanHorizontal:
-		movem.l	d0-a6,-(a7)
+       movem.l	d0-a6,-(a7)
 
 
-		move	#rotateMovesLength,d3
-		lsr.w	#2,d3
-		sub.w	#1,d3
-		
-		lea		rotateMoves+rotateMovesLength-4,a0
-		move.l	#-8,d2
+       move	#rotateMovesLength,d3
+       lsr.w	#2,d3
+       sub.w	#1,d3
+       
+       lea		rotateMoves+rotateMovesLength-4,a0
+       move.l	#-8,d2
 
-		tst.b	d1
-		bne		.backward
+       tst.b	d1
+       bne		.backward
 
-		lea		rotateMoves,a0
-		move.l	#0,d2
+       lea		rotateMoves,a0
+       move.l	#0,d2
 .backward		
 		
 .loop
-		clr.l	d6
-		move.b	(a0)+,d6
-		clr.l	d0
-		move.b	(a0)+,d0
-		clr.l	d4
-		move.b	(a0)+,d4
-		clr.l	d5
-		move.b	(a0)+,d5
-              eor	d1,d5
-		bsr RotateQrCode2
-		add.l	d2,a0		
-		dbf		d3,.loop
-		
+       clr.l	d6
+       move.b	(a0)+,d6
+       clr.l	d0
+       move.b	(a0)+,d0
+       clr.l	d4
+       move.b	(a0)+,d4
+       clr.l	d5
+       move.b	(a0)+,d5
+       eor	d1,d5
+       bsr RotateQrCode2
+       add.l	d2,a0		
+       dbf		d3,.loop
+       
 
-		movem.l	(a7)+,d0-a6
+       movem.l	(a7)+,d0-a6
 
-		rts
+       rts
 
 ;-----------------------------------------------------------------------------
 ;	; xline=1, yline=0, steps=2, direction=0
@@ -850,172 +815,169 @@ RotateQrCodePlanHorizontal:
 ;-----------------------------------------------------------------------------
 
 RotateQrCode2:
-		movem.l	d1-d3/d7/a0,-(a7)
-		subq	#1,d4
-		moveq	#rectWidth,d3
+       movem.l d1-d3/d7/a0,-(a7)
+       subq #1,d4
+       moveq #rectWidth,d3
 
 .stepsloop:
-		lea		qrCode,a0
-		move.l	a0,a1
+       lea qrCode,a0
+       move.l	a0,a1
 		
 		
 
-		tst		d5
-		beq		.directionDownLeft
+       tst		d5
+       beq		.directionDownLeft
 .directionRightUp
-		cmp.b	#$FF,d6
-		beq		.doUp
+       cmp.b	#$FF,d6
+       beq		.doUp
 .doRight:
-		move	#rectWidth-1,d1
-		move.l	d6,d7
-		muls	#rectWidth,d7
-		add.l	d7,a0
-		add.l	#rectWidth-1,a0
-		move.b	(a0),d2
+       move	#rectWidth-1,d1
+       move.l	d6,d7
+       muls	#rectWidth,d7
+       add.l	d7,a0
+       add.l	#rectWidth-1,a0
+       move.b	(a0),d2
 .loop4
-		move.b	-1(a0),(a0)
-		sub		#1,a0
-		dbf		d1,.loop4
+       move.b	-1(a0),(a0)
+       sub		#1,a0
+       dbf		d1,.loop4
 
-		addq	#1,a0
-		move.b	d2,(a0)
+       addq	#1,a0
+       move.b	d2,(a0)
 
 .doUp:
-		cmp.b	#$ff,d0
-		beq		.endStep
-		lea		qrCode,a0
-		move	#rectHeight-1,d1
-		add.l	d0,a0
-		move.b	(a0),d2
+       cmp.b	#$ff,d0
+       beq		.endStep
+       lea		qrCode,a0
+       move	#rectHeight-1,d1
+       add.l	d0,a0
+       move.b	(a0),d2
 .loop
-		move.b	(a0,d3),(a0)
-		add		d3,a0
-		dbf		d1,.loop
+       move.b	(a0,d3),(a0)
+       add		d3,a0
+       dbf		d1,.loop
 
-		sub		d3,a0
-		move.b	d2,(a0)
-		jmp		.endStep
-		;dbf		d4,.stepsloop
-		;jmp .exit
+       sub		d3,a0
+       move.b	d2,(a0)
+       jmp		.endStep
 .directionDownLeft:
-		cmp.b	#$FF,d0
-		beq		.doLeft
+       cmp.b	#$FF,d0
+       beq		.doLeft
 .doDown:
-		move	#rectHeight,d1
-		subq	#1,d1
-		add.l	d0,a0
-		move	d3,d7
-		muls	#rectHeight-1,d7
-		add.l	d7,a0
-		move.b	(a0),d2
+       move	#rectHeight,d1
+       subq	#1,d1
+       add.l	d0,a0
+       move	d3,d7
+       muls	#rectHeight-1,d7
+       add.l	d7,a0
+       move.b	(a0),d2
 .loop2
-		sub.l	d3,a0
-		move.b	(a0),(a0,d3)
-		dbf		d1,.loop2
+       sub.l	d3,a0
+       move.b	(a0),(a0,d3)
+       dbf		d1,.loop2
 
-		add.l	d3,a0
-		move.b	d2,(a0)
+       add.l	d3,a0
+       move.b	d2,(a0)
 
 .doLeft:
-		move	#rectWidth,d1
-		subq	#1,d1
-		cmp.b	#$ff,d6
-		beq		.endStep
-		lea		qrCode,a0
-		move.l	d6,d7
-		muls	#rectWidth,d7
-		add.l	d7,a0
-		move.b	(a0),d2
+       move	#rectWidth,d1
+       subq	#1,d1
+       cmp.b	#$ff,d6
+       beq		.endStep
+       lea		qrCode,a0
+       move.l	d6,d7
+       muls	#rectWidth,d7
+       add.l	d7,a0
+       move.b	(a0),d2
 .loop3
-		move.b	1(a0),(a0)
-		add		#1,a0
-		dbf		d1,.loop3
+       move.b	1(a0),(a0)
+       add		#1,a0
+       dbf		d1,.loop3
 
-		subq	#1,a0
-		move.b	d2,(a0)
+       subq	#1,a0
+       move.b	d2,(a0)
 
 .endStep:
-		dbf		d4,.stepsloop
+       dbf		d4,.stepsloop
 .exit:
-		movem.l	(a7)+,d1-d3/d7/a0
-		rts
+       movem.l	(a7)+,d1-d3/d7/a0
+       rts
 
 
 ;--------------------------------------------------------------
 
 PlotQRCode:
-		lea		qrCode,a0
-		clr.l	d6
-		move.l	#29-1,d0
-              lea Screen,a1
-		;move.l	screen(a6),a1
-		move.l	a1,a2
-		move.l	a1,a3
-		jmp		StartRows
+       lea		qrCode,a0
+       clr.l	d6
+       move.l	#29-1,d0                          ; loop counter for the 29 qr code lines
+       lea Screen,a1                             ; load screen to a1
+
+       move.l	a1,a2                              ; preserve ptr to screen in a2
+       move.l	a1,a3                              ; preserve ptr to screen in a3
+       jmp		StartRows
 LoopQRRows:
-		move	#QR_SCREEN_LINE,d6
-		lsl.l	#3,d6
-		move.l	a2,a1
-		add.l	d6,a1
-		move.l	a1,a2
+       move	#QR_SCREEN_LINE,d6
+       lsl.l	#3,d6
+       move.l	a2,a1
+       add.l	d6,a1
+       move.l	a1,a2
 StartRows:
-		moveq	#16-1,d1
-		
+       moveq	#16-1,d1                           ; we need to plot 16*2 dots (16 * 16 pixels) per row
+       
 .nextbyte:
-		move.b	(a0)+,d6
-		move.l	#$80,d7
+       move.b	(a0)+,d6                           ; move next byte (8 dots) of qr code to d6
+       move.l	#$80,d7                            ; $80 = b10000000, bit mask for getting the single dots in the byte
 .nextbit:		
-		move.l	a1,a3
-		cmpi.b	#0,d7
-		beq		.nextbyte
+       move.l	a1,a3                              ; preserve ptr to screen in a3
+       cmpi.b	#0,d7                              ; did we process all 8 bits from that byte?
+       beq		.nextbyte                   ; then move on to the next byte
+                                                 
 
-		move.w	#$0000,d2
+       move.w	#$0000,d2                          ; d2 holds the two colors for the two dots
+                                                 ; $FF = all pixel bits for 8 pixels wide are set         (COLOR01)
+                                                 ; $00 = none of the pixel bits for 8 pixels wide are set (COLOR00)
+                                                 ; init to both dots = COLOR00
 
-		move.l	d6,d5
-		
-		and		d7,d5
-		
-		beq		.white
+       move.l	d6,d5                              ; preserve qr-code byte to d5, so we can work with it
+       
+       and		d7,d5                       ; AND byte with bitmask
+       
+       beq		.isColor0                      ; is this bit set?
 
-		; color is black
-		
+       move.w	#$FF00,d2                          ; the left dot of the two is COLOR01
+.isColor0:	
+       lsr		#1,d7                       ; shift the bitmask one to the right to get the next dot
+       
+       move.b	#$00,d2                            ; preload color with COLOR00
 
-		move.w	#$FF00,d2
-.white:	; color is white
-		lsr		#1,d7
-		
-		move.b	#$00,d2
+       move.l	d6,d5                              ; preserve qr-code byte to d5, so we can work with it
+       
+       and		d7,d5                       ; AND byte with bitmask
+       
+       beq		.isColor0_                     ; is this bit set?
 
-		move.l	d6,d5
-		
-		and		d7,d5
-		
-		beq		.white2
-
-		; color is black
-		
-	; color is white
-		move.b	#$FF,d2
-.white2:
-		lsr		#1,d7
-		
-		
+       move.b	#$FF,d2                            ; otherwhise change to COLOR01
+.isColor0_:
+       lsr		#1,d7                       ; shift the bitmask one to the right to get the next dot
+       
+       
 .loopRow:
-		move.w	#8-1,d4
+       move.w	#8-1,d4                     ; plot the qr code dot 8 pixels high 
 
 .loop292:		
-		move.w	d2,(a1)
-		add.l	#QR_SCREEN_LINE,a1
-		dbf d4,.loop292
-		
-		move.l	a3,a1
-		add.l	#2,a1
+       move.w	d2,(a1)
+       add.l	#QR_SCREEN_LINE,a1          ; add one line of screen buffer so we reach the next line
+       dbf d4,.loop292
+       
+       move.l	a3,a1                       ; reset ptr to begin of first screen line
+       add.l	#2,a1                       ; move ptr 16 pixel to the right, cause we plotted 2 dots, 8 pixel each wide
 
-		dbf d1,.nextbit
+       dbf d1,.nextbit                    ; do this 16 times, cause we plot 2 dots each loop
+                                          ; = 32 dots (29 real + 3 padding)
 
-		dbf d0,LoopQRRows
+       dbf d0,LoopQRRows                  ; do this 29 times, cause we have a 29x29 dots QR-Code
 
-		rts
+       rts
        ; Include simple CIA toolkit
 	include	"music/LightSpeedPlayer_cia.s"
        ; Include generic LSP player
@@ -1036,9 +998,9 @@ ScrollText:
        IFEQ RELEASE
        dc.b "     JOKERX IS PROUD TO PRESENT: HV23 DAY 24"
        dc.b " ----- "
-       dc.b "CHALLENGE DONE BY: JOKERX ON DECEMBER 22, 2023"
+       dc.b "CHALLENGE DONE BY: JOKERX ON DECEMBER 23, 2023"
        dc.b " ----- "
-       dc.b "GREETS GO OUT TO 0XI FOR BETA TESTING, JOGEIR LILJEDAHL "
+       dc.b "GREETS GO OUT TO 0xI FOR PLAYTESTING, JOGEIR LILJEDAHL "
        dc.b "FOR THE MUSIC AND TO ARNAUD CARRE FOR LSP"
        dc.b " ----- "
        dc.b "PRESS LMB TO SHOW QR-CODE OR CONTACT US!"
@@ -1051,25 +1013,22 @@ ScrollText:
        dc.b " ----- "
        dc.b "$ HAPPY ISLAND $ JOKERX WORLD HQ (555)555-1337"
        dc.b " ----- "
-       dc.b "YOU MADE IT TO THE END, THANKS FOR READING ALL THE TEXT"
+       dc.b "YOU MADE IT TO THE END, THANKS FOR READING ALL THE TEXT!"
        dc.b "           -----           "
        dc.b "YEAH, FOR REALZ, IT'S OVER! ;)"
        dc.b "           -----           "
        dc.b "NEVER GONNA GIVE YOU UP :D"
        dc.b "           -----           "
-       dc.b "OK, ONE MORE EFFECT WITH THE TEXTSCROLLER CAUSE YOU CAN'T STOP READING"
+       dc.b "OK, ONE MORE EFFECT WITH THE TEXTSCROLLER CAUSE YOU WON'T STOP READING :P"
        dc.b "           -----           "
        dc.b "    %   SPECIAL GREETS GO OUT TO    $BACHMMA1$#"
        dc.b "           -----           "
-       dc.b "MERRY X-MAS TO EVERYONE FROM    $HACKVENT$",$22,"graphics.library",0
+       dc.b "MERRY X-MAS TO ALL OF YOU AT THE    yHACKVENTy",$22,"graphics.library",0
        ENDC
 gfxname:      equ *-17
-;gfxname:
-;       dc.b "graphics.library",0
+
 ScrollTextE:
 
-;LastChar:
-;       dc.b 0
        even
 
 ScrollCtr:
@@ -1167,94 +1126,12 @@ copper2bplP:
        dc.w $ffff,$fffe            ; copper list end
 copper2E:
 
-       IF 1=0
-BarBehind:
-       dc.w $558
-       dc.w $0111,$0322,$0411
-       dc.w $0712,$0643,$0334,$0556
-
-       dc.w $99d
-       dc.w $0111,$0322,$0411
-       dc.w $0712,$0643,$0334,$0556
-
-       dc.w $fff
-       dc.w $0111,$0322,$0411
-       dc.w $0712,$0643,$0334,$0556
-
-       dc.w $99d
-       dc.w $0111,$0322,$0411
-       dc.w $0712,$0643,$0334,$0556
-
-       dc.w $558
-       dc.w $0111,$0322,$0411
-       dc.w $0712,$0643,$0334,$0556
-
-       dc.w logobgcolor
-       dc.w $0111,$0322,$0411
-       dc.w $0712,$0643,$0334,$0556
-
-BarInFront:
-       dc.w $558
-       dc.w $558
-       dc.w $558
-       dc.w $558
-       dc.w $558
-       dc.w $558
-       dc.w $558
-       dc.w $558
-
-       dc.w $99d
-       dc.w $99d
-       dc.w $99d
-       dc.w $99d
-       dc.w $99d
-       dc.w $99d
-       dc.w $99d
-       dc.w $99d
-       
-       dc.w $fff
-       dc.w $fff
-       dc.w $fff
-       dc.w $fff
-       dc.w $fff
-       dc.w $fff
-       dc.w $fff
-       dc.w $fff
-
-       dc.w $99d
-       dc.w $999
-       dc.w $99d
-       dc.w $999
-       dc.w $99d
-       dc.w $999
-       dc.w $99d
-       dc.w $999
-
-
-       dc.w $558
-       dc.w $558
-       dc.w $558
-       dc.w $558
-       dc.w $558
-       dc.w $558
-       dc.w $558
-       dc.w $558
-
-       dc.w logobgcolor
-       dc.w $0111,$0322,$0411
-       dc.w $0712,$0643,$0334,$0556
-
-       ENDC
 copper:
        dc.w $1fc,0                 ; slow fetch mode, AGA compatibility
        dc.w bplcon0,$0200             ; enable color burst output signal
                                    ; to make compatible with all amigas
 
        dc.w $102,0                 ;disable playfield 2
-
-       ;dc.w $1a2,$ff0              ; sprite colors
-       ;dc.w $1a4,$f00
-       ;dc.w $1a6,$000
 
 SprP:                              ; 8 x hi & low word Ptr address
        dc.w $120,$0
@@ -1287,8 +1164,8 @@ CopBplP:
        dc.w bplpt+$12,$0
        dc.w diwstrt,$2c81
        dc.w diwstop,$2cc1
-       dc.w ddfstrt,$38;+logomargin/2
-       dc.w ddfstop,$d0;-logomargin
+       dc.w ddfstrt,$38
+       dc.w ddfstop,$d0
        dc.w bpl1mod,logoScreenBpl*logobitplanes-(320/8)
        dc.w bpl2mod,logoScreenBpl*logobitplanes-(320/8)
 
@@ -1328,7 +1205,6 @@ waitras6:
        dc.w $c7df,$fffe
        dc.w $180,$fff
        dc.w bplcon0,$0200
-       ;dc.w $c8e8,$fffe
 
 ScrBplP:
        dc.w bplpt,$0                 ; bitplane0 address
@@ -1374,8 +1250,6 @@ Font2PalP:
        dc.w $180,$ccf
        dc.w $d407,$fffe
        dc.w $180,$bbf
-
-       
 
        dc.w $d507,$fffe
        dc.w $180,$aaf
@@ -1427,11 +1301,8 @@ Font2PalP:
        dc.w $180,bgcolor
 
        dc.w $f507,$fffe
-       
-
-       
+            
        ;dc.w $ffdf,$fffe            ; wait till line 255, to catch line above it
-       ;dc.w $2c07,$fffe
 
        dc.w $ffff,$fffe            ; copper list end
 CopperE:
@@ -1530,45 +1401,6 @@ rainbowPal:
        dc.w $f00
 rainbowPalE:
 
-colPal32:
-       dc.l $00000000
-       dc.l $00111111
-       dc.l $00222222
-       dc.l $00333333
-       dc.l $00444444
-       dc.l $00555555
-       dc.l $00666666
-       dc.l $00777777
-       dc.l $00888888
-       dc.l $00999999
-       dc.l $00aaaaaa
-       dc.l $00bbbbbb
-       dc.l $00cccccc
-       dc.l $00dddddd
-       dc.l $00eeeeee
-       dc.l $00ffffff
-       dc.l $00eeeeee
-       dc.l $00dddddd
-       dc.l $00cccccc
-       dc.l $00bbbbbb
-       dc.l $00aaaaaa
-       dc.l $00999999
-       dc.l $00888888
-       dc.l $00777777
-       dc.l $00666666
-       dc.l $00555555
-       dc.l $00444444
-       dc.l $00333333
-       dc.l $00222222
-       dc.l $00111111
-       dc.l $00000000
-       dc.l $00000000
-
-       IF 1=0
-Font:
-       INCBIN "font.font"               ; 8x8
-FontE:
-       ENDC
 Font2:
        INCBIN "font_bitmap.raw"
 Font2E:
@@ -1581,7 +1413,11 @@ logoE:
 
 
 qrCode:
-	incbin "qrcode_hv23_shuffled.bin"
+       IFEQ RELEASE
+	incbin "qrcode_hv23_unshuffled.bin"
+       else
+       incbin "qrcode_hv23_shuffled.bin"
+       endc
 	even
 
        SECTION sound,DATA_C
